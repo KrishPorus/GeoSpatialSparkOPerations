@@ -26,6 +26,11 @@ public class SparkOperations {
             SparkClosestPair.FarthestPairFactory(ctx);
         }
 
+        //Spark UNION
+        SparkUnion.SparkUnionFactory(ctx);
+
+        //Spark RANGE QUERY
+        Rangequery.RangeQuery(ctx);
 
     }
 }
