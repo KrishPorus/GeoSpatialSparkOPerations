@@ -25,7 +25,7 @@ import java.util.*;
 
 public class ConvexHullPoints 
 {
-    public static void main(JavaSparkContext sc)
+    public static void getConvexPoints(JavaSparkContext sc)
     {
     	JavaRDD<String> lines = sc.textFile("/home/vamseedhar/Downloads/ConvexHullTestData.csv");
     	JavaRDD<Coordinate> coordinateList = lines.map(new GetInput());
@@ -43,10 +43,6 @@ public class ConvexHullPoints
     	});
     	
     	hullPointsString.saveAsTextFile("/home/vamseedhar/Downloads/ConvexHullResultData.csv");
-    	
-    	for(int i = 0; i< hullPointsList.length; i++){
-    		System.out.println("x: "+((Coordinate)hullPointsList[i]).x+"y: "+((Coordinate)hullPointsList[i]).y);
-    	}
     			 
     }
 }
