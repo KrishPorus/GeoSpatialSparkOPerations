@@ -1,4 +1,3 @@
-
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
@@ -22,17 +21,15 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 
-
 public class ConvexHullPoints 
 {
-    public static void getConvexPoints(JavaSparkContext sc)
+    public static void getConvexPoints( JavaSparkContext sc )
     {
-    	JavaRDD<String> lines = sc.textFile("/home/vamseedhar/Downloads/ConvexHullTestData.csv");
-    	JavaRDD<Coordinate> coordinateList = lines.map(new GetInput());
-    	coordinateList.foreach(new Print());    	
-    	JavaRDD<Coordinate[]> hullPoints = coordinateList.mapPartitions(new ConvexH());
-    	Coordinate[] hullPointsList = hullPoints.reduce(new GlobalConvexH());
-    	JavaRDD<Coordinate> hullPointsRDD = sc.parallelize(Arrays.asList(hullPointsList));
+    	JavaRDD<String> lines = sc.textFile("/home/vamseedhar/Downloads/Test Case/ConvexHullTestData.csv");
+    	JavaRDD<Coordinate> coordinateList = lines.repartition(1).map(new GetInput());   	
+    	JavaRDD<Coordinate> hullPoints = coordinateList.mapPartitions(new ConvexH());
+    	List<Coordinate> hullPointsList = hullPoints.collect();
+    	JavaRDD<Coordinate> hullPointsRDD = sc.parallelize(hullPointsList, 1);
     	JavaRDD<String> hullPointsString = hullPointsRDD.repartition(1).map(new Function<Coordinate, String>(){
 
 			public String call(Coordinate hullPoint) throws Exception {
@@ -54,6 +51,7 @@ class GlobalConvexH implements Function2<Coordinate[], Coordinate[], Coordinate[
 		Coordinate[] inputPoints = new Coordinate[pointArray1.length + pointArray2.length];
     	ConvexHull convexHull = new ConvexHull(inputPoints, new GeometryFactory());
     	Geometry convexHullGeometry = convexHull.getConvexHull();
+    	System.out.println("-------"+convexHullGeometry);
     	Coordinate[] convexResult = convexHullGeometry.getCoordinates();
 		
 		return convexResult;
@@ -61,10 +59,10 @@ class GlobalConvexH implements Function2<Coordinate[], Coordinate[], Coordinate[
 	
 }
 
-class ConvexH implements FlatMapFunction<Iterator<Coordinate>, Coordinate[]>
+class ConvexH implements FlatMapFunction<Iterator<Coordinate>, Coordinate>
 
 {
-	public Iterable<Coordinate[]> call(Iterator<Coordinate> coordinatesIterator) throws Exception {
+	public Iterable<Coordinate> call(Iterator<Coordinate> coordinatesIterator) throws Exception {
 		// TODO Auto-generated method stub
 		List<Coordinate> coorList = new ArrayList<Coordinate>();
 		while(coordinatesIterator.hasNext()){
@@ -79,9 +77,7 @@ class ConvexH implements FlatMapFunction<Iterator<Coordinate>, Coordinate[]>
     	ConvexHull convexHull = new ConvexHull(coorArray, new GeometryFactory());
     	Geometry convexHullGeometry = convexHull.getConvexHull();
     	Coordinate[] convexResult = convexHullGeometry.getCoordinates();
-    	List<Coordinate[]> listofArrays = new ArrayList<Coordinate[]>();
-    	listofArrays.add(convexResult);
-    	return listofArrays;
+    	return Arrays.asList(convexResult);
 	}
     
 }
@@ -101,13 +97,3 @@ class GetInput implements Function<String, Coordinate> {
     }
 	
 }
-
-class Print implements VoidFunction<Coordinate> {
-
-	public void call(Coordinate p) throws Exception {
-		// TODO Auto-generated method stub
-		System.out.println("x: "+p.x+" "+"y: "+p.y);
-	}
-	
-}
-
