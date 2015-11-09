@@ -15,11 +15,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- * Hello world!
- *
- */
-
 class PointPair implements Serializable{
     private Coordinate p1;
     private Coordinate p2;
@@ -35,8 +30,7 @@ class PointPair implements Serializable{
     public double getPointDistance() {
         return pointDistance;
     }
-    public String getCoordinates()
-    {
+    public String getCoordinates() {
     	return p1.x +","+ p1.y +"\n" +p2.x+","+p2.y;
     }
     public void setPointDistance(double pointDistance) {
@@ -46,9 +40,7 @@ class PointPair implements Serializable{
 
 public class SparkFarthestPair
 {
-    public static void sparkfarthestpair(JavaSparkContext sc ) 
-    {
-
+    public static void getFarthestPair(JavaSparkContext sc ) {
         JavaRDD<String> textFile = sc.textFile("FarthestPairTestData.csv");
         JavaRDD<Coordinate> coordinates = textFile.flatMap(
                 new FlatMapFunction<String, Coordinate>() {
@@ -60,6 +52,7 @@ public class SparkFarthestPair
                     }
                 }
         );
+        // get Convex Hull Points
         JavaRDD<Coordinate> hullPoints = coordinates.mapPartitions(new myConvexHull());
         JavaRDD<Coordinate> reducedPoints = hullPoints.repartition(1);
         JavaRDD<Coordinate> finalPoints = reducedPoints.mapPartitions(new myConvexHull());
@@ -68,12 +61,14 @@ public class SparkFarthestPair
         Coordinate p1,p2;
         List<PointPair> allPairs = new ArrayList<PointPair>();
 
+        // Form all pairs of Points
         for (int i = 0; i < chPoints.length-1; i++) {
             for (int j = i+1; j< chPoints.length; j++) {
                 PointPair obj = new PointPair(chPoints[i], chPoints[j]);
                 allPairs.add(obj);
             }
         }
+        // Distribute poitns to workers and calculate the distance
         JavaRDD<PointPair> pointPairs = sc.parallelize(allPairs);
         JavaRDD<PointPair> farthestPair = pointPairs.mapPartitions(new CalculateDistance());
         List<PointPair> farthestPointPairs = farthestPair.collect();
@@ -90,7 +85,6 @@ public class SparkFarthestPair
         ArrayList<String> listOfPoints = new ArrayList();
         listOfPoints.add(result.getCoordinates());
         JavaRDD<String> finalresult = sc.parallelize(listOfPoints);
-        
         finalresult.repartition(1).saveAsTextFile("farthest.csv");
     }
 
@@ -113,8 +107,8 @@ public class SparkFarthestPair
             Coordinate[] c = geometry.getCoordinates();
 
             //Convert the coordinates array to arraylist here
-            List<Coordinate> a = Arrays.asList(c);
-            return a;
+            List<Coordinate> pts = Arrays.asList(c);
+            return pts;
         }
     }
 
