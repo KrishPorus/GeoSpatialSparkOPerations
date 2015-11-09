@@ -21,16 +21,13 @@ public class SparkOperations {
             // Closest Pair HDFS Path
             SparkClosestPair.closestPairFactory(ctx);
         }
-        if (ip == 2) {
-            // Closest Pair HDFS Path
-            SparkClosestPair.FarthestPairFactory(ctx);
-        }
-
         //Spark UNION
         SparkUnion.SparkUnionFactory(ctx);
 
         //Spark RANGE QUERY
         Rangequery.RangeQuery(ctx);
 
+        // Farthest Pair HDFS Path
+        SparkFarthestPair.getFarthestPair(ctx);
     }
 }
