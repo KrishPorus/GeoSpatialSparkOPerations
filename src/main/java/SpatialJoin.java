@@ -108,9 +108,9 @@ public class SpatialJoin {
 }
 
 interface GeometryWrapper {
-    public Geometry getGeometry();
-    public int getId();
-    @Override public String toString();
+    Geometry getGeometry();
+    int getId();
+    @Override String toString();
 }
 
 class CustomRectangle implements GeometryWrapper, java.io.Serializable{
