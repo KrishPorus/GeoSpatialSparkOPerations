@@ -23,7 +23,7 @@ public class SpatialJoin {
         sc.addJar("target/dds-1.0-SNAPSHOT.jar");
         sc.addJar("lib/jts-1.13.jar");
         sc.addJar("lib/guava-18.0.jar");
-        JavaRDD<String> targetFile = sc.textFile("hdfs://master:54310/user/hduser/JoinQueryInput1.csv");
+        JavaRDD<String> targetFile = sc.textFile("hdfs://master:54310/user/hduser/JoinQueryInput3.csv");
         JavaRDD<String> queryFile = sc.textFile("hdfs://master:54310/user/hduser/JoinQueryInput2.csv");
         final JavaRDD<GeometryWrapper> queries = queryFile.map(new JoinQueryReadInput());
         List<GeometryWrapper> queryForBroadCast = queries.collect();
@@ -76,10 +76,10 @@ public class SpatialJoin {
                 return Integer.parseInt(s.substring(0, s.indexOf(",")));
             }
         }, true, 1);
-//        List<String> resFinal = filePrint.collect();
-//        for(String res: resFinal){
-//            System.out.println(res);
-//        }
+        List<String> resFinal = filePrint.collect();
+        for(String res: resFinal){
+            System.out.println(res);
+        }
         filePrint.saveAsTextFile("hdfs://master:54310/user/hduser/JoinQueryResult.csv");
     }
 
@@ -93,12 +93,12 @@ public class SpatialJoin {
                 double y1 = Double.parseDouble(vals[2]);
                 double x2 = Double.parseDouble(vals[3]);
                 double y2 = Double.parseDouble(vals[4]);
-                r = new GeometryWrapper(id, x1, y1, x2, y2);
+                r = new CustomRectangle(id, x1, y1, x2, y2);
             }else{
                 int id = Integer.parseInt(vals[0]);
                 double x1 = Double.parseDouble(vals[1]);
                 double y1 = Double.parseDouble(vals[2]);
-                r = new GeometryWrapper(id, x1, y1);
+                r = new CustomPoint(id, x1, y1);
             }
             return r;
         }
@@ -107,14 +107,18 @@ public class SpatialJoin {
 
 }
 
-class GeometryWrapper implements java.io.Serializable{
+interface GeometryWrapper {
+    public Geometry getGeometry();
+    public int getId();
+    @Override public String toString();
+}
+
+class CustomRectangle implements GeometryWrapper, java.io.Serializable{
     private int id;
     private double x1, y1, x2, y2;
     private Polygon rect = null;
-    private Point point = null;
 
-
-    public GeometryWrapper(int id, double x1, double y1, double x2, double y2) {
+    public CustomRectangle(int id, double x1, double y1, double x2, double y2) {
         this.id = id;
         this.x1 = x1;
         this.y1 = y1;
@@ -133,7 +137,27 @@ class GeometryWrapper implements java.io.Serializable{
         this.rect = new Polygon(r, null, new GeometryFactory());
     }
 
-    public GeometryWrapper(int id, double x1, double y1){
+    public Geometry getGeometry() {
+        return this.rect;
+    }
+
+    public int getId(){
+        return id;
+    }
+
+    @Override
+    public String toString() {
+        DecimalFormat df = new DecimalFormat("#.#####");
+        return id+":"+df.format(x1)+","+df.format(y1)+","+df.format(x2)+","+df.format(y2);
+    }
+}
+
+class CustomPoint implements GeometryWrapper, java.io.Serializable{
+    private int id;
+    private double x1, y1;
+    private Point point = null;
+
+    public CustomPoint(int id, double x1, double y1){
         this.id = id;
         this.x1 = x1;
         this.y1 = y1;
@@ -141,25 +165,21 @@ class GeometryWrapper implements java.io.Serializable{
         point = geometryFactory.createPoint(new Coordinate(x1,y1));
     }
 
-    public int getId(){
-        return id;
+    public Geometry getGeometry() {
+        return this.point;
     }
 
-    public Geometry getGeometry(){
-        if(this.rect != null)
-            return this.rect;
-        else
-            return this.point;
+    public int getId(){
+        return id;
     }
 
     @Override
     public String toString() {
         DecimalFormat df = new DecimalFormat("#.#####");
-        if(rect != null){
-            return id+":"+df.format(x1)+","+df.format(y1)+","+df.format(x2)+","+df.format(y2);
-        }else{
-            return id+":"+df.format(x1)+","+df.format(y1);
-        }
+        return id+":"+df.format(x1)+","+df.format(y1);
     }
 
 }
+
+
+
