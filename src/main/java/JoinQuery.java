@@ -18,17 +18,37 @@ import java.util.List;
 public class SpatialJoin {
 
     public static void main(String[] args) {
-        SparkConf sparkConf = new SparkConf().setAppName("SpatialJoin").setMaster("spark://127.0.0.1:7077");
+        //Handling wrong number of parameters
+        if(args.length < 3){
+            System.out.println("Usage: JoinQuery arg1 arg2 arg3");
+            System.out.println("arg1: input dataset A file path[Target Recntagles or points]");
+            System.out.println("arg2: input dataset B file path [Query Recntagles]");
+            System.out.println("arg3: output file name and path");
+            System.exit(1);
+        }
+
+        //Creating and setting sparkconf
+        SparkConf sparkConf = new SparkConf().setAppName("Group3-JoinQuery");
+        sparkConf.setMaster("spark://127.0.0.1:7077");
         JavaSparkContext sc = new JavaSparkContext(sparkConf);
+
+        //Adding external jars
         sc.addJar("target/dds-1.0-SNAPSHOT.jar");
         sc.addJar("lib/jts-1.13.jar");
         sc.addJar("lib/guava-18.0.jar");
-        JavaRDD<String> targetFile = sc.textFile("hdfs://master:54310/user/hduser/JoinQueryInput3.csv");
-        JavaRDD<String> queryFile = sc.textFile("hdfs://master:54310/user/hduser/JoinQueryInput2.csv");
-        final JavaRDD<GeometryWrapper> queries = queryFile.map(new JoinQueryReadInput());
+
+        //Read from HDFS, the query and the target files
+        JavaRDD<String> targetFile = sc.textFile(args[0]);
+        JavaRDD<String> queryFile = sc.textFile(args[1]);
+        JavaRDD<GeometryWrapper> queries = queryFile.map(new JoinQueryReadInput());
         List<GeometryWrapper> queryForBroadCast = queries.collect();
+
+        //Broadcast the query rectangles
         final Broadcast<List<GeometryWrapper>> broad_var = sc.broadcast(queryForBroadCast);
         JavaRDD<GeometryWrapper> targets = targetFile.map(new JoinQueryReadInput());
+
+        //Based on the objects created, decide if target file consists of rectangles or
+        //points and broadcast the choice.
         int choice;
         if(targets.first().getGeometry() instanceof Point)
             choice = 1;
@@ -36,13 +56,14 @@ public class SpatialJoin {
             choice = 2;
         final Broadcast<Integer> brChoice = sc.broadcast(choice);
 
+        //map partitionstopair to find all the pairs of ids of query and targets which form a join.
         JavaPairRDD<Integer, Integer> result = targets.mapPartitionsToPair(new PairFlatMapFunction<Iterator<GeometryWrapper>, Integer, Integer>() {
-            public Iterable<Tuple2<Integer, Integer>> call(Iterator<GeometryWrapper> rectangleIterator) throws Exception {
+            public Iterable<Tuple2<Integer, Integer>> call(Iterator<GeometryWrapper> targetIterator) throws Exception {
                 List<Tuple2<Integer, Integer>> result = new ArrayList<Tuple2<Integer, Integer>>();
                 List<GeometryWrapper> bv = broad_var.getValue();
                 Integer choice = brChoice.getValue();
-                while(rectangleIterator.hasNext()){
-                    GeometryWrapper target = rectangleIterator.next();
+                while(targetIterator.hasNext()){
+                    GeometryWrapper target = targetIterator.next();
                     for(GeometryWrapper query: bv){
                         if(choice == 2 && (query.getGeometry().intersects(target.getGeometry())
                                 || query.getGeometry().contains(target.getGeometry())
@@ -60,14 +81,20 @@ public class SpatialJoin {
                 return result;
             }
         });
-        JavaPairRDD<Integer, Iterable<Integer>> toPrint = result.groupByKey();//.sortByKey(true);
+
+        //combine the pairs by key, to form list of query to target mappings
+        JavaPairRDD<Integer, Iterable<Integer>> toPrint = result.groupByKey();
         JavaRDD<String> filePrint = toPrint.flatMap(new FlatMapFunction<Tuple2<Integer, Iterable<Integer>>, String>() {
             public Iterable<String> call(Tuple2<Integer, Iterable<Integer>> integerIterableTuple2) throws Exception {
                 List<String> res = new ArrayList<String>();
                 String temp = integerIterableTuple2._1().toString();
+                int count = 0;
                 for (Integer id : integerIterableTuple2._2()) {
+                    count++;
                     temp += "," + id;
                 }
+                if(count == 0)
+                    temp = ",NULL";
                 res.add(temp);
                 return res;
             }
@@ -76,11 +103,16 @@ public class SpatialJoin {
                 return Integer.parseInt(s.substring(0, s.indexOf(",")));
             }
         }, true, 1);
-        List<String> resFinal = filePrint.collect();
-        for(String res: resFinal){
-            System.out.println(res);
-        }
-        filePrint.saveAsTextFile("hdfs://master:54310/user/hduser/JoinQueryResult.csv");
+
+        //User below code for debugging to print the output to local console
+        //List<String> resFinal = filePrint.collect();
+        //for(String res: resFinal){
+        //    System.out.println(res);
+        //}
+
+        //Save output in text file to user provided location from third argument
+        System.out.println("Saving the output in:"+args[2]);
+        filePrint.saveAsTextFile(args[2]);
     }
 
     public static class JoinQueryReadInput implements Function<String, GeometryWrapper> {
